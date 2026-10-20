@@ -4,7 +4,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { dailyTargets, matchNutrition, satietyScore, buildCombos, sodiumAdvice, classify } from './engine/engine.mjs';
+import { dailyTargets, buildCombos, sodiumAdvice } from './engine/engine.mjs';
+import { buildPool } from './engine/pool.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > -1 ? process.argv[i + 1] : d; };
@@ -19,18 +20,7 @@ const budget = arg('budget', null);
 const nutrition = JSON.parse(readFileSync(join(ROOT, 'data-samples/cache-nutrition.json'), 'utf8'));
 const menu = JSON.parse(readFileSync(join(ROOT, 'data-samples/cache-menu.json'), 'utf8'));
 const priceCache = JSON.parse(readFileSync(join(ROOT, 'data-samples/cache-prices.json'), 'utf8'));
-
-const pool = [];
-for (const [code, d] of Object.entries(menu.details)) {
-  if (d.error || !d.name || d.rounds?.length) continue;
-  const cat = classify(d.cat, d.name);
-  const n = matchNutrition(d.name, nutrition);
-  if (!n || cat === 'other') continue;
-  pool.push({ code, name: d.name, cat,
-    kcal: n.kcal, protein: n.protein, sodium: n.sodium,
-    price: priceCache.prices[code]?.priceCents != null ? priceCache.prices[code].priceCents / 100 : null,
-    satiety: satietyScore(n) });
-}
+const pool = buildPool(menu, nutrition, priceCache);
 
 const targets = dailyTargets(profile);
 if (budget) targets.budget = Number(budget);

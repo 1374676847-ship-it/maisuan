@@ -65,6 +65,8 @@ export function classify(cat, name = '') {
   const text = `${cat} ${name}`;
   // 周边/非食品优先剔除
   if (/徽章|玩具|按摩捶|水手帽|杯子|贴纸/.test(name)) return 'other';
+  // 官方套餐按分类识别（随心配/单人餐/多人餐/拼盘/乐园餐/大卡套餐）
+  if (/套餐|随心配|单人餐|多人餐|拼盘|乐园/.test(cat)) return 'combo';
   if (/堡|汉堡|麦满分|多笋卷/.test(name) || /汉堡|早餐|猪柳|牛/.test(cat)) return 'main';
   if (/薯条|玉米杯|苹果片|派|新地|麦旋风|冰淇淋|圆筒|芝士条|V翅|鸡翅|鸡排|鸡块|鸡球|麦乐鸡/.test(name) ||
       /小食|甜品|其他|炸鸡/.test(cat)) return 'side';
@@ -78,6 +80,7 @@ export function buildCombos(items, targets, { maxResults = 10 } = {}) {
   const mains = items.filter(i => i.cat === 'main' && i.kcal != null);
   const sides = items.filter(i => i.cat === 'side' && i.kcal != null);
   const drinks = items.filter(i => i.cat === 'drink' && i.kcal != null);
+  const combos = items.filter(i => i.cat === 'combo' && i.kcal != null); // 官方套餐
 
   const candidates = [];
   const push = (parts) => {
@@ -100,6 +103,7 @@ export function buildCombos(items, targets, { maxResults = 10 } = {}) {
     for (const s of sides) { push([m, s]); for (const d of drinks) push([m, s, d]); }
     for (const d of drinks) push([m, d]);
   }
+  for (const cb of combos) push([cb]); // 官方套餐原样参与比价
 
   // 去重（同样单品集合只留一次）
   const seen = new Set();
@@ -118,17 +122,18 @@ export function buildCombos(items, targets, { maxResults = 10 } = {}) {
   const folded = [...bestByCore.values()];
 
   // 业务规则：光秃秃一个汉堡不像一餐，用户容易放弃购买。
-  // 所有「仅主食」的组合自动搭配全池最便宜且 ≤30 kcal 的饮料（如无糖茶/纯水），加价 transparently
+  // 「仅主食」的组合自动搭配全池最便宜且 ≤30 kcal 的饮料；但若因此超出预算则不硬塞（诚实优先于好看）
   const cheapestLowCalDrink = drinks.filter(d => d.kcal <= 30 && d.price != null)
     .sort((a, b) => a.price - b.price)[0];
   const withDrink = folded.map(c => {
     if (c.parts.length !== 1 || c.parts[0].cat !== 'main' || !cheapestLowCalDrink) return c;
     const d = cheapestLowCalDrink;
+    const newPrice = c.price + d.price;
+    if (targets.budget && newPrice > targets.budget) return c;
     const parts = [...c.parts, d];
     const kcal = c.kcal + d.kcal, protein = c.protein + d.protein, sodium = c.sodium + d.sodium;
-    const price = c.price + d.price;
     const satiety = Math.min(100, Math.round(parts.reduce((s, p) => s + p.satiety, 0) / Math.sqrt(parts.length)));
-    return { parts, kcal, protein, sodium, price, satiety,
+    return { parts, kcal, protein, sodium, price: newPrice, satiety,
       kcalRatio: kcal / targets.kcalMeal,
       sodiumRatio: sodium / (targets.sodiumDay ?? 2000) };
   });

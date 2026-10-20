@@ -1,32 +1,37 @@
-// 一次性算价：所有单品放一个购物车，从 productList 拆出单价 → cache-prices.json
-import { readFileSync, writeFileSync } from 'node:fs';
+// 全量算价 v2：单品 + 官方套餐，20 个一车分批发（避免单个失败拖垮全部）
+import { writeFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { callToolJson } from '../engine/mcd-client.mjs';
-import { classify, matchNutrition } from '../engine/engine.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(ROOT, 'data-samples');
 const menu = JSON.parse(readFileSync(join(OUT, 'cache-menu.json'), 'utf8'));
-const nutrition = JSON.parse(readFileSync(join(OUT, 'cache-nutrition.json'), 'utf8'));
+const codes = Object.keys(menu.details).filter(c => !menu.details[c].error && menu.details[c].name);
+console.log('pricing all:', codes.length, 'items');
 
-const singles = [];
-for (const [code, d] of Object.entries(menu.details)) {
-  if (d.error || !d.name || d.rounds?.length) continue;
-  if (classify(d.cat, d.name) === 'other') continue;
-  if (!matchNutrition(d.name, nutrition)) continue;  // 只要引擎会用的
-  singles.push({ code, name: d.name });
+const prices = {};
+const CHUNK = 20;
+for (let i = 0; i < codes.length; i += CHUNK) {
+  const batch = codes.slice(i, i + CHUNK);
+  try {
+    const r = await callToolJson('calculate-price', {
+      storeCode: '1400956', orderType: 1, beType: 1,
+      items: batch.map(c => ({ productCode: c, quantity: 1 })),
+    });
+    for (const p of r.data.productList) prices[p.productCode] = { name: p.productName, priceCents: p.subtotal };
+    console.log(`  batch ${i / CHUNK + 1}: ${batch.length} priced, cart ¥${r.data.price / 100}`);
+  } catch (e) {
+    console.log(`  batch ${i / CHUNK + 1} FAILED:`, String(e).slice(0, 120));
+    for (const c of batch) {
+      try {
+        const r = await callToolJson('calculate-price', { storeCode: '1400956', orderType: 1, beType: 1, items: [{ productCode: c, quantity: 1 }] });
+        prices[c] = { name: r.data.productList[0].productName, priceCents: r.data.price };
+      } catch (e2) { console.log('    item failed:', c, String(e2).slice(0, 80)); }
+    }
+  }
 }
-console.log('pricing singles:', singles.length);
-
-const r = await callToolJson('calculate-price', {
-  storeCode: '1400956', orderType: 1, beType: 1,
-  items: singles.map(s => ({ productCode: s.code, quantity: 1 })),
-});
-const byCode = {};
-for (const p of r.data.productList) byCode[p.productCode] = { name: p.productName, priceCents: p.subtotal };
 writeFileSync(join(OUT, 'cache-prices.json'), JSON.stringify({
-  storeCode: '1400956', fetchedAt: r.datetime, currency: 'CNY-fen', prices: byCode,
+  storeCode: '1400956', currency: 'CNY-fen', prices,
 }, null, 1));
-console.log('priced:', Object.keys(byCode).length, 'total cart:', r.data.price / 100, '元');
-console.log('samples:', Object.entries(byCode).slice(0, 5).map(([c, p]) => `${p.name}=${p.priceCents / 100}元`).join(' | '));
+console.log('done. priced:', Object.keys(prices).length, '/', codes.length);

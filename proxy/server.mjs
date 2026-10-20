@@ -5,7 +5,8 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
-import { dailyTargets, matchNutrition, satietyScore, buildCombos, sodiumAdvice, classify } from '../engine/engine.mjs';
+import { dailyTargets, buildCombos, sodiumAdvice } from '../engine/engine.mjs';
+import { buildPool } from '../engine/pool.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const WEB = join(ROOT, 'web');
@@ -15,25 +16,7 @@ const PORT = process.env.PORT ?? 8321;
 const nutrition = JSON.parse(readFileSync(join(DATA, 'cache-nutrition.json'), 'utf8'));
 const menu = JSON.parse(readFileSync(join(DATA, 'cache-menu.json'), 'utf8'));
 const priceCache = JSON.parse(readFileSync(join(DATA, 'cache-prices.json'), 'utf8'));
-
-// 构建单品池（与 self-check 同逻辑，抽出来供 API 复用）
-function buildPool() {
-  const items = [];
-  for (const [code, d] of Object.entries(menu.details)) {
-    if (d.error || !d.name || d.rounds?.length) continue;
-    const cat = classify(d.cat, d.name);
-    const n = matchNutrition(d.name, nutrition);
-    if (!n || cat === 'other') continue;
-    items.push({
-      code, name: d.name, cat, image: d.image ?? null,
-      kcal: n.kcal, protein: n.protein, sodium: n.sodium,
-      price: priceCache.prices[code]?.priceCents != null ? priceCache.prices[code].priceCents / 100 : null,
-      satiety: satietyScore(n),
-    });
-  }
-  return items;
-}
-const pool = buildPool();
+const pool = buildPool(menu, nutrition, priceCache);
 
 function recommend(params) {
   const profile = {

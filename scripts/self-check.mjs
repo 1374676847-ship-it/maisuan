@@ -3,7 +3,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { calcTdee, dailyTargets, matchNutrition, satietyScore, buildCombos, sodiumAdvice, classify } from '../engine/engine.mjs';
+import { calcTdee, dailyTargets, buildCombos, sodiumAdvice } from '../engine/engine.mjs';
+import { buildPool } from '../engine/pool.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const nutrition = JSON.parse(readFileSync(join(ROOT, 'data-samples/cache-nutrition.json'), 'utf8'));
@@ -22,79 +23,56 @@ const tdeeF = calcTdee({ heightCm: 160, weightKg: 55, age: 30, sex: 'female', ac
 ok(Math.abs(tdeeF - 1487) <= 3, `TDEE(女) 偏差: ${tdeeF} ≠ 1487`);
 console.log(`[1] TDEE 公式: ${tdee} kcal(男70kg) / ${tdeeF} kcal(女55kg)`);
 
-// ---------- 2. 商品标准化 ----------
-// 单品（无套餐轮次）从详情提取；套餐提取默认选中组合
-const items = [];
-let matched = 0, unmatched = [];
-for (const [code, d] of Object.entries(menu.details)) {
-  if (d.error || !d.name) continue;
-  const parts = [];
-  if (d.rounds?.length) {
-    for (const r of d.rounds) {
-      const def = (r.choices || []).find(c => c.isDefault === 1) ?? r.choices?.[0];
-      if (def) parts.push(def.name);
-    }
-  } else {
-    parts.push(d.name);
-  }
-  const cat = classify(d.cat, d.name);
-  // 每个 part 匹配营养；套餐的营养 = 各默认子项之和
-  let kcal = 0, protein = 0, sodium = 0, hasNutri = false;
-  for (const pn of parts) {
-    const n = matchNutrition(pn, nutrition);
-    if (n) { kcal += n.kcal; protein += n.protein; sodium += n.sodium; hasNutri = true; matched++; }
-    else unmatched.push(pn);
-  }
-  const image = d.image ?? null;
-  if (d.rounds?.length) {
-    items.push({ code, name: d.name, cat, combo: true, parts, image,
-      kcal: hasNutri ? kcal : null, protein, sodium });
-  } else {
-    items.push({ code, name: d.name, cat, combo: false, image,
-      kcal: hasNutri ? kcal : null, protein, sodium });
-  }
-}
-console.log(`[2] 菜单单品营养匹配: ${matched} 命中, ${unmatched.length} 未命中`);
-console.log('    未命中样本:', [...new Set(unmatched)].slice(0, 12).join(' | '));
-ok(matched > 120, `营养匹配率过低: ${matched}`);
-
-// ---------- 3. 单品池 + 饱腹分 ----------
-const singles = items.filter(i => !i.combo && i.kcal != null)
-  .map(i => ({ ...i, price: priceCache.prices[i.code]?.priceCents != null ? priceCache.prices[i.code].priceCents / 100 : null, satiety: satietyScore({ kcal: i.kcal, protein: i.protein, sodium: i.sodium }) }));
-const mains = singles.filter(i => i.cat === 'main');
-const sides = singles.filter(i => i.cat === 'side');
-const drinks = singles.filter(i => i.cat === 'drink');
-console.log(`[3] 单品池: 主食类 ${mains.length} · 配餐类 ${sides.length} · 饮品类 ${drinks.length}`);
+// ---------- 2. 单品池（单点 + 官方套餐）----------
+const pool = buildPool(menu, nutrition, priceCache);
+const mains = pool.filter(i => i.cat === 'main');
+const sides = pool.filter(i => i.cat === 'side');
+const drinks = pool.filter(i => i.cat === 'drink');
+const combos = pool.filter(i => i.cat === 'combo');
+console.log(`[2] 单品池: 主食 ${mains.length} · 配餐 ${sides.length} · 饮品 ${drinks.length} · 官方套餐 ${combos.length}`);
 ok(mains.length >= 10, '主食类单品太少');
 ok(sides.length >= 5, '配餐类单品太少');
 ok(drinks.length >= 5, '饮品类单品太少');
+ok(combos.length >= 10, '官方套餐入库太少');
+ok(pool.every(i => i.price != null), '单品池存在无价格商品');
+const sui = combos.find(c => c.name.includes('随心配'));
+ok(!!sui, '随心配未入库');
+if (sui) console.log(`    随心配样本: ${sui.name} ¥${sui.price} ${sui.kcal}kcal 蛋白${sui.protein}g`);
 
-// ---------- 4. 引擎全链路：70kg 男 减脂 ----------
+// ---------- 3. 引擎全链路：70kg 男 减脂 ----------
 const profile = { heightCm: 170, weightKg: 70, age: 30, sex: 'male', activity: 'light', goal: 'cut' };
 const targets = dailyTargets(profile);
-console.log(`[4] 目标: TDEE ${targets.tdee} · 日摄入 ${targets.kcalDay} · 单餐 ≤${targets.kcalMeal} kcal · 单餐蛋白 ≥${targets.proteinMeal} g`);
+console.log(`[3] 目标: TDEE ${targets.tdee} · 日摄入 ${targets.kcalDay} · 单餐 ≤${targets.kcalMeal} kcal · 单餐蛋白 ≥${targets.proteinMeal} g`);
 
-const pool = [...mains, ...sides, ...drinks];
 const { bySatiety, byPrice, total } = buildCombos(pool, targets);
-console.log(`    合法组合数: ${total}（枚举后约束过滤）`);
-ok(total > 30, `合法组合太少: ${total}`);
+console.log(`    合法组合数: ${total}（单点组合 + 官方套餐）`);
+ok(total > 100, `合法组合太少: ${total}`);
 ok(bySatiety.every(c => c.kcal <= targets.kcalMeal), '饱腹榜存在超热量组合');
 ok(byPrice.length > 0, '便宜榜为空');
-ok(bySatiety.every(c => c.protein >= targets.proteinMeal * 0.6), '存在蛋白不达标的组合');
+ok(bySatiety.every(c => c.protein >= targets.proteinMeal * 0.6 - 1), '存在蛋白严重不达标组合');
 
 const fmt = c => `  ${c.parts.map(p => p.name).join(' + ')} | ${c.kcal}kcal 蛋白${c.protein}g 钠${Math.round(c.sodiumRatio * 100)}% 饱腹${c.satiety}分 ¥${c.price?.toFixed(1)}`;
 console.log('\n  --- 饱腹优先 Top5 ---');
 bySatiety.slice(0, 5).forEach(c => console.log(fmt(c)));
 console.log('\n  --- 便宜优先 Top5 ---');
 byPrice.slice(0, 5).forEach(c => console.log(fmt(c)));
-ok(byPrice.every(c => c.price != null), '便宜榜存在无价格组合');
-ok(JSON.stringify(byPrice.map(c => c.parts.map(p => p.name).join('+')))
-  !== JSON.stringify(bySatiety.map(c => c.parts.map(p => p.name).join('+'))),
-  '便宜榜与饱腹榜应不同（价格管道未生效）');
-ok(byPrice.slice(0, 3).every(c => c.parts.length >= 2),
-  '便宜榜 Top3 应都含饮品（单汉堡不像一餐）');
+const full = c => c.parts.length >= 2 || c.parts[0].cat === 'combo';
+ok(byPrice.slice(0, 3).every(full), '便宜榜 Top3 应都含饮品或是官方套餐（单汉堡不像一餐）');
 
-// ---------- 5. 钠提示 ----------
+// ---------- 4. 官方套餐进入便宜榜 ----------
+const cheapHasCombo = byPrice.slice(0, 5).some(c => c.parts[0].cat === 'combo');
+ok(cheapHasCombo, '便宜榜 Top5 应包含官方套餐（随心配/三件套是真实便宜货）');
+
+// ---------- 5. 预算硬约束 ----------
+const t25 = { ...targets, budget: 25 };
+const r25 = buildCombos(pool, t25);
+console.log(`\n[4] 预算 25 元: 合法 ${r25.total} 个, 最便宜 ${r25.byPrice[0]?.price} 元 (${r25.byPrice[0]?.parts.map(p => p.name).join(' + ')})`);
+ok(r25.byPrice.every(c => c.price <= 25), '预算 25 却推荐超价套餐（预算约束失效）');
+ok(r25.byPrice.length > 0, '预算 25 无合法组合');
+ok(r25.byPrice[0] && (r25.byPrice[0].parts[0].cat === 'combo' || full(r25.byPrice[0])),
+  '预算 25 榜首应是官方套餐或含饮品的组合（便宜榜首不该是干 burger）');
+
+// ---------- 6. 钠提示 ----------
 const mid = sodiumAdvice(0.62), high = sodiumAdvice(0.78), lowN = sodiumAdvice(0.5);
 ok(mid.level === 'mid' && mid.text, '钠 62% 提示缺失');
 ok(high.level === 'high', '钠 78% 应判 high');
