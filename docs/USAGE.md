@@ -1,7 +1,7 @@
 # 使用说明 · 图文版
 
 > 网页版操作三步走：填数据 → 看推荐 → 一键下单。全程不超过 30 秒。
-> 在线体验：[预览地址见仓库首页](https://github.com/1374676847-ship-it/maisuan#麦算-maisuan)
+> **在线体验（免安装）：https://maisuan-mcd.app.workbuddy.host/?sharecode=MUGMZUYC3K**
 
 ## 第一步：填身体数据
 

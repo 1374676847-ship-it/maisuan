@@ -4,6 +4,9 @@
 
 输入身高体重，它从麦当劳**真实在售菜单**里现场搭出：热量达标、蛋白充足、价格最低的一餐。营养、菜单、价格全部来自麦当劳官方 MCP 实时数据，不是拍脑袋的静态表。
 
+**在线体验（免安装）：https://maisuan-mcd.app.workbuddy.host/?sharecode=MUGMZUYC3K**
+图文使用说明见 [docs/USAGE.md](docs/USAGE.md)。
+
 ![demo](docs/demo.gif)
 
 ## 为什么做这个
