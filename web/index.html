@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>麦算 · 吃饱吃好还能瘦</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #FFFAF0; color: #2C2C2A; max-width: 420px; margin: 0 auto; min-height: 100vh; }
+  .head { background: #DA291C; padding: 14px 18px; }
+  .head-row { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 34px; height: 34px; border-radius: 8px; background: #FFC72C; color: #DA291C; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 19px; }
+  .head h1 { color: #fff; font-size: 15px; }
+  .head .sub { color: #FFC72C; font-size: 12px; margin-top: 1px; }
+  .mode { margin-left: auto; background: #FFC72C; color: #DA291C; font-size: 12px; font-weight: 600; border-radius: 12px; padding: 3px 10px; }
+  .store-bar { margin-top: 12px; background: rgba(255,255,255,.15); border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .store-bar .dim { opacity: .75; font-size: 12px; }
+  .body { padding: 16px 18px 24px; }
+  .form-card { background: #FFF6E0; border-radius: 14px; padding: 16px 14px; }
+  .form-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .form-title span { font-weight: 400; color: #888780; font-size: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label.f { font-size: 12px; color: #5F5E5A; display: block; }
+  input, select { width: 100%; margin-top: 4px; padding: 9px 10px; border: 0.5px solid #D3D1C7; border-radius: 8px; font-size: 14px; background: #fff; }
+  .adv { margin-top: 10px; font-size: 12px; color: #BA7517; cursor: pointer; font-weight: 600; }
+  .adv-body { display: none; margin-top: 10px; padding-top: 10px; border-top: 0.5px dashed #D3D1C7; display: grid; gap: 10px; font-size: 12px; color: #5F5E5A; }
+  .adv.open + .adv-body { display: grid; }
+  .radio-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .radio-row label { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .radio-row input { width: auto; margin: 0; }
+  .cta { width: 100%; background: #DA291C; color: #fff; border: none; border-radius: 20px; padding: 12px; font-size: 15px; font-weight: 600; margin-top: 14px; cursor: pointer; }
+  .cta:disabled { opacity: .6; }
+  .summary { background: #FFF6E0; border-radius: 12px; padding: 12px 14px; margin-top: 16px; font-size: 12px; color: #5F5E5A; }
+  .summary b { color: #2C2C2A; font-weight: 600; }
+  .toggle { display: flex; gap: 6px; margin-top: 10px; }
+  .toggle button { flex: 1; padding: 6px 0; border-radius: 14px; border: 0.5px solid #D3D1C7; background: #fff; font-size: 12px; color: #5F5E5A; cursor: pointer; }
+  .toggle button.on { background: #DA291C; color: #fff; border-color: #DA291C; font-weight: 600; }
+  .combo-card { background: #FFF6E0; border-radius: 14px; padding: 14px; margin-top: 12px; border: 2px solid transparent; }
+  .combo-card.first { border-color: #FFC72C; }
+  .combo-top { display: flex; gap: 12px; }
+  .imgs { display: flex; align-items: center; }
+  .imgs img { width: 58px; height: 58px; object-fit: contain; background: #fff; border-radius: 10px; border: 0.5px solid #eee; }
+  .imgs img:not(:first-child) { margin-left: -14px; }
+  .combo-info { flex: 1; min-width: 0; }
+  .combo-name { font-size: 14px; font-weight: 600; line-height: 1.4; }
+  .tags { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; background: #fff; border: 0.5px solid #EF9F27; color: #BA7517; border-radius: 10px; padding: 2px 8px; }
+  .tag.coupon { border-color: #E24B4A; color: #A32D2D; }
+  .price-row { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+  .price { font-weight: 700; color: #DA291C; font-size: 19px; }
+  .satiety-score { margin-left: auto; font-size: 12px; color: #BA7517; font-weight: 600; }
+  .bars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; font-size: 11px; color: #5F5E5A; }
+  .bar { height: 5px; border-radius: 3px; background: #F1EFE8; margin-top: 3px; overflow: hidden; }
+  .bar i { display: block; height: 5px; border-radius: 3px; }
+  .kcal-bar i { background: #FFC72C; } .pro-bar i { background: #1D9E75; }
+  .na-bar.warn i { background: #EF9F27; } .na-bar.high i { background: #E24B4A; } .na-bar.ok i { background: #85B7EB; }
+  .na-note { color: #BA7517; }
+  .empty { text-align: center; color: #888780; font-size: 13px; padding: 24px 0; }
+  .disclaimer { font-size: 11px; color: #888780; margin-top: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="head-row">
+      <div class="logo">M</div>
+      <div><h1>麦算 maisuan</h1><div class="sub">吃饱 · 吃好 · 还能瘦</div></div>
+      <span class="mode">减脂模式</span>
+    </div>
+    <div class="store-bar" id="storeBar">正在定位门店…</div>
+  </div>
+
+  <div class="body">
+    <div class="form-card">
+      <div class="form-title">你的身体数据 <span>只需两项，剩下的我帮你默认</span></div>
+      <div class="grid2">
+        <label class="f">身高 cm<input id="h" type="number" value="170"></label>
+        <label class="f">体重 kg<input id="w" type="number" value="70"></label>
+      </div>
+      <div class="adv" id="advToggle">高级调整 ▾</div>
+      <div class="adv-body" id="advBody">
+        <div class="radio-row">目标
+          <label><input type="radio" name="goal" value="cut" checked> 减脂</label>
+          <label><input type="radio" name="goal" value="maintain"> 维持</label>
+        </div>
+        <div class="radio-row">活动量
+          <label><input type="radio" name="act" value="sedentary"> 久坐</label>
+          <label><input type="radio" name="act" value="light" checked> 偶尔运动</label>
+          <label><input type="radio" name="act" value="moderate"> 常运动</label>
+        </div>
+        <div class="grid2">
+          <label class="f">年龄<input id="age" type="number" value="30"></label>
+          <label class="f">这顿预算(元，可空)<input id="budget" type="number" placeholder="不限"></label>
+        </div>
+      </div>
+      <button class="cta" id="go">给我搭一餐</button>
+    </div>
+
+    <div id="result"></div>
+
+    <p class="disclaimer">本工具仅做通用营养算术，非医疗建议；孕期、慢性病等特殊情况请咨询医生或营养师。价格为单点实付估算，套餐/用券后的更优价以官方 App 为准。营养与菜单数据通过麦当劳 MCP 实时获取。</p>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+advToggle.onclick = () => { advBody.style.display = advBody.style.display === 'grid' ? 'none' : 'grid'; };
+
+fetch('/api/health').then(r => r.json()).then(d => {
+  storeBar.innerHTML = '📍 ' + d.store + ' <span class="dim">到店取餐 · 菜单 ' + new Date().toLocaleDateString() + ' 实时同步</span>';
+}).catch(() => storeBar.textContent = '门店数据不可用');
+
+let mode = 'bySatiety', lastData = null;
+
+function render() {
+  if (!lastData) return;
+  const { targets, total } = lastData;
+  const list = lastData[mode];
+  const cards = list.slice(0, 3).map((c, i) => {
+    const na = c.sodiumAdvice;
+    const naCls = na.level === 'high' ? 'high' : na.level === 'mid' ? 'warn' : 'ok';
+    const imgs = c.parts.filter(p => p.image).map(p => `<img src="${p.image}" alt="${p.name}" loading="lazy">`).join('');
+    return `<div class="combo-card ${i === 0 ? 'first' : ''}">
+      <div class="combo-top">
+        <div class="imgs">${imgs}</div>
+        <div class="combo-info">
+          <div class="combo-name">${c.parts.map(p => p.name).join(' + ')}</div>
+          <div class="tags"><span class="tag">饱腹分 ${c.satiety}</span>${i === 0 ? '<span class="tag coupon">推荐</span>' : ''}</div>
+          <div class="price-row"><span class="price">¥${c.price.toFixed(1)}</span><span class="satiety-score">${c.kcal} kcal · 蛋白 ${c.protein} g</span></div>
+        </div>
+      </div>
+      <div class="bars">
+        <div>热量 ${c.kcal}/${targets.kcalMeal}<div class="bar kcal-bar"><i style="width:${Math.min(100, c.kcalRatio * 100)}%"></i></div></div>
+        <div>蛋白 ${c.protein}g<div class="bar pro-bar"><i style="width:${Math.min(100, c.protein / targets.proteinMeal * 100)}%"></i></div></div>
+        <div>钠 ${Math.round(c.sodiumRatio * 100)}%<div class="bar na-bar ${naCls}"><i style="width:${Math.min(100, c.sodiumRatio * 100)}%"></i></div>${na.text ? `<div class="na-note">${na.text}</div>` : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  result.innerHTML = `<div class="summary">
+      本餐预算 <b>${targets.kcalMeal} kcal</b> · 单餐蛋白底线 <b>${targets.proteinMeal} g</b> · 从 ${total} 个合法组合中选出
+      <div class="toggle">
+        <button class="${mode === 'bySatiety' ? 'on' : ''}" onclick="switchMode('bySatiety')">饱腹优先</button>
+        <button class="${mode === 'byPrice' ? 'on' : ''}" onclick="switchMode('byPrice')">便宜优先</button>
+      </div>
+    </div>` + (cards || '<div class="empty">没有符合条件的组合，放宽预算试试</div>');
+}
+window.switchMode = m => { mode = m; render(); };
+
+go.onclick = async () => {
+  go.disabled = true; go.textContent = '搭配中…';
+  const p = new URLSearchParams({
+    heightCm: h.value, weightKg: w.value, age: age.value,
+    sex: 'male', goal: document.querySelector('[name=goal]:checked').value,
+    activity: document.querySelector('[name=act]:checked').value,
+  });
+  if (budget.value) p.set('budget', budget.value);
+  try {
+    lastData = await (await fetch('/api/recommend?' + p)).json();
+    if (lastData.error) throw new Error(lastData.error);
+    mode = 'bySatiety'; render();
+    result.scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    result.innerHTML = `<div class="empty">请求失败：${e.message}（请确认本地代理已启动）</div>`;
+  }
+  go.disabled = false; go.textContent = '给我搭一餐';
+};
+</script>
+</body>
+</html>

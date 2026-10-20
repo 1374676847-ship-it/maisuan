@@ -1,0 +1,12 @@
+# 依赖与环境
+node_modules/
+.env
+*.log
+
+# MCP token 与本机配置（严禁入库）
+mcp.json
+
+# 实时数据缓存（体积大，且应通过 MCP 现场拉取）
+data-samples/*.json
+data-samples/*.txt
+!data-samples/.gitkeep
