@@ -107,7 +107,11 @@
 const $ = id => document.getElementById(id);
 advToggle.onclick = () => { advBody.style.display = advBody.style.display === 'grid' ? 'none' : 'grid'; };
 
-fetch('/api/health').then(r => r.json()).then(d => {
+// 分享链接带访问码，所有 API 请求都要透传（去掉 ? 前缀）
+const sharecode = new URLSearchParams(location.search).get('sharecode');
+const withSc = qs => (sharecode ? `${qs}${qs.includes('?') ? '&' : '?'}sharecode=${sharecode}` : qs);
+
+fetch(withSc('/api/health')).then(r => r.json()).then(d => {
   storeBar.innerHTML = '📍 ' + d.store + ' <span class="dim">到店取餐 · 菜单 ' + new Date().toLocaleDateString() + ' 实时同步</span>';
 }).catch(() => storeBar.textContent = '门店数据不可用');
 
@@ -170,7 +174,7 @@ go.onclick = async () => {
   });
   if (budget.value) p.set('budget', budget.value);
   try {
-    lastData = await (await fetch('/api/recommend?' + p)).json();
+    lastData = await (await fetch(withSc('/api/recommend?' + p))).json();
     if (lastData.error) throw new Error(lastData.error);
     mode = 'bySatiety'; render();
     result.scrollIntoView({ behavior: 'smooth' });
