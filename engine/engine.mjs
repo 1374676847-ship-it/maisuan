@@ -101,13 +101,14 @@ export function buildCombos(items, targets, { maxResults = 10 } = {}) {
     for (const d of drinks) push([m, d]);
   }
 
-  // 去重（同样单品集合只留一次）+ 折叠「同主食同配餐只差零卡饮品」的近似重复
+  // 去重（同样单品集合只留一次）
   const seen = new Set();
   const uniq = candidates.filter(c => {
     const key = c.parts.map(p => p.name).sort().join('|');
     if (seen.has(key)) return false;
     seen.add(key); return true;
   });
+  // 折叠「同主食同配餐只差零卡饮品」的近似重复，保留饱腹分最高者
   const bestByCore = new Map();
   for (const c of uniq) {
     const core = c.parts.filter(p => p.kcal > 20).map(p => p.name).sort().join('|');
@@ -115,8 +116,24 @@ export function buildCombos(items, targets, { maxResults = 10 } = {}) {
     if (!prev || c.satiety > prev.satiety) bestByCore.set(core, c);
   }
   const folded = [...bestByCore.values()];
-  const bySatiety = [...folded].sort((a, b) => b.satiety - a.satiety || a.price - b.price).slice(0, maxResults);
-  const byPrice = [...folded].sort((a, b) => a.price - b.price || b.satiety - a.satiety).slice(0, maxResults);
+
+  // 业务规则：光秃秃一个汉堡不像一餐，用户容易放弃购买。
+  // 所有「仅主食」的组合自动搭配全池最便宜且 ≤30 kcal 的饮料（如无糖茶/纯水），加价 transparently
+  const cheapestLowCalDrink = drinks.filter(d => d.kcal <= 30 && d.price != null)
+    .sort((a, b) => a.price - b.price)[0];
+  const withDrink = folded.map(c => {
+    if (c.parts.length !== 1 || c.parts[0].cat !== 'main' || !cheapestLowCalDrink) return c;
+    const d = cheapestLowCalDrink;
+    const parts = [...c.parts, d];
+    const kcal = c.kcal + d.kcal, protein = c.protein + d.protein, sodium = c.sodium + d.sodium;
+    const price = c.price + d.price;
+    const satiety = Math.min(100, Math.round(parts.reduce((s, p) => s + p.satiety, 0) / Math.sqrt(parts.length)));
+    return { parts, kcal, protein, sodium, price, satiety,
+      kcalRatio: kcal / targets.kcalMeal,
+      sodiumRatio: sodium / (targets.sodiumDay ?? 2000) };
+  });
+  const bySatiety = [...withDrink].sort((a, b) => b.satiety - a.satiety || a.price - b.price).slice(0, maxResults);
+  const byPrice = [...withDrink].sort((a, b) => a.price - b.price || b.satiety - a.satiety).slice(0, maxResults);
   return { bySatiety, byPrice, total: uniq.length };
 }
 

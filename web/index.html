@@ -55,6 +55,8 @@
   .kcal-bar i { background: #FFC72C; } .pro-bar i { background: #1D9E75; }
   .na-bar.warn i { background: #EF9F27; } .na-bar.high i { background: #E24B4A; } .na-bar.ok i { background: #85B7EB; }
   .na-note { color: #BA7517; }
+  .buy-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; background: #FFC72C; color: #DA291C; border: none; font-size: 18px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: #2C2C2A; color: #fff; font-size: 13px; padding: 10px 18px; border-radius: 20px; display: none; z-index: 9; max-width: 320px; text-align: center; }
   .empty { text-align: center; color: #888780; font-size: 13px; padding: 24px 0; }
   .disclaimer { font-size: 11px; color: #888780; margin-top: 16px; line-height: 1.6; }
 </style>
@@ -99,6 +101,7 @@
 
     <p class="disclaimer">本工具仅做通用营养算术，非医疗建议；孕期、慢性病等特殊情况请咨询医生或营养师。价格为单点实付估算，套餐/用券后的更优价以官方 App 为准。营养与菜单数据通过麦当劳 MCP 实时获取。</p>
   </div>
+  <div class="toast" id="toast"></div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -124,7 +127,8 @@ function render() {
         <div class="combo-info">
           <div class="combo-name">${c.parts.map(p => p.name).join(' + ')}</div>
           <div class="tags"><span class="tag">饱腹分 ${c.satiety}</span>${i === 0 ? '<span class="tag coupon">推荐</span>' : ''}</div>
-          <div class="price-row"><span class="price">¥${c.price.toFixed(1)}</span><span class="satiety-score">${c.kcal} kcal · 蛋白 ${c.protein} g</span></div>
+          <div class="price-row"><span class="price">¥${c.price.toFixed(1)}</span><span class="satiety-score">${c.kcal} kcal · 蛋白 ${c.protein} g</span>
+            <button class="buy-btn" title="去官方渠道购买" onclick="buy('${c.parts.map(p => p.name).join(' + ').replace(/'/g, '')}', ${c.price.toFixed(1)})">+</button></div>
         </div>
       </div>
       <div class="bars">
@@ -143,6 +147,19 @@ function render() {
     </div>` + (cards || '<div class="empty">没有符合条件的组合，放宽预算试试</div>');
 }
 window.switchMode = m => { mode = m; render(); };
+
+// 购买按钮：下单需要用户自己的麦当劳会员登录态与支付确认，本工具不代下单。
+// 点击后复制套餐清单，并打开官方渠道，用户粘贴搜索即可按官方流程购买。
+window.buy = (names, price) => {
+  const text = `${names}（约 ¥${price}）`;
+  const open = () => window.open('https://www.mcdonalds.com.cn', '_blank');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(open, open);
+  } else open();
+  toast.textContent = '套餐清单已复制，正在打开官方渠道，粘贴搜索即可下单';
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 3000);
+};
 
 go.onclick = async () => {
   go.disabled = true; go.textContent = '搭配中…';

@@ -91,6 +91,8 @@ ok(byPrice.every(c => c.price != null), '便宜榜存在无价格组合');
 ok(JSON.stringify(byPrice.map(c => c.parts.map(p => p.name).join('+')))
   !== JSON.stringify(bySatiety.map(c => c.parts.map(p => p.name).join('+'))),
   '便宜榜与饱腹榜应不同（价格管道未生效）');
+ok(byPrice.slice(0, 3).every(c => c.parts.length >= 2),
+  '便宜榜 Top3 应都含饮品（单汉堡不像一餐）');
 
 // ---------- 5. 钠提示 ----------
 const mid = sodiumAdvice(0.62), high = sodiumAdvice(0.78), lowN = sodiumAdvice(0.5);
